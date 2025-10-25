@@ -27,13 +27,17 @@ except ImportError:
     print("Warning: anthropic library not available. Install with 'uv add anthropic'")
 
 # Import MCP tools
-from mcp_servers.email_sender import send_email, send_simple_email
+from mcp_servers.email_sender import send_email
 from mcp_servers.web_search import search_web, get_news, get_weather, get_stock_price
 from mcp_servers.meeting_scheduler import schedule_meeting, list_meetings, cancel_meeting, check_availability
 from mcp_servers.pizza_ordering import get_pizza_menu, get_restaurants, order_pizza, check_order_status, list_orders
 from mcp_servers.ask_questions import (
     ask_clarifying_question, ask_personal_information, ask_preference_question, 
     ask_confirmation, get_user_response, list_pending_questions
+)
+from mcp_servers.pdf_reader import (
+    read_pdf_text, extract_pdf_images, read_pdf_with_ocr,
+    get_pdf_info, analyze_pdf_structure, ask_question_about_pdf, list_loaded_documents
 )
 
 class AIPersonalAssistant:
@@ -57,7 +61,6 @@ class AIPersonalAssistant:
         # Available tools for Claude to use
         self.available_tools = {
             "send_email": self.send_email_tool,
-            "send_simple_email": self.send_simple_email_tool,
             "search_web": self.search_web_tool,
             "get_news": self.get_news_tool,
             "get_weather": self.get_weather_tool,
@@ -270,12 +273,69 @@ class AIPersonalAssistant:
                         },
                         "required": ["query"]
                     }
+                },
+                {
+                    "name": "read_pdf_text",
+                    "description": "Extract text content from a PDF file. Can specify page range.",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "file_path": {"type": "string", "description": "Path to the PDF file"},
+                            "page_start": {"type": "integer", "description": "Starting page number (1-indexed, optional)"},
+                            "page_end": {"type": "integer", "description": "Ending page number (1-indexed, optional)"}
+                        },
+                        "required": ["file_path"]
+                    }
+                },
+                {
+                    "name": "read_pdf_with_ocr",
+                    "description": "Extract text from PDF including OCR from images. Best for scanned documents or PDFs with embedded images containing text.",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "file_path": {"type": "string", "description": "Path to the PDF file"},
+                            "page_start": {"type": "integer", "description": "Starting page number (1-indexed, optional)"},
+                            "page_end": {"type": "integer", "description": "Ending page number (1-indexed, optional)"},
+                            "ocr_language": {"type": "string", "description": "OCR language code (default: 'eng', use 'eng+fra' for multiple)"}
+                        },
+                        "required": ["file_path"]
+                    }
+                },
+                {
+                    "name": "ask_question_about_pdf",
+                    "description": "Ask a question about a loaded PDF's content. Must load PDF first using read_pdf_text or read_pdf_with_ocr.",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "question": {"type": "string", "description": "The question to ask about the PDF content"},
+                            "file_path": {"type": "string", "description": "Path to specific PDF (optional, uses all loaded PDFs if not specified)"}
+                        },
+                        "required": ["question"]
+                    }
+                },
+                {
+                    "name": "get_pdf_info",
+                    "description": "Get metadata and statistics about a PDF file (page count, file size, images, etc.)",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "file_path": {"type": "string", "description": "Path to the PDF file"}
+                        },
+                        "required": ["file_path"]
+                    }
                 }
             ]
             
             # Create system prompt
             system_prompt = """You are a helpful personal AI assistant. Be friendly and conversational.
-When the user asks you to send an email or search for something, use the appropriate tool.
+You have access to tools for:
+- Sending emails (send_simple_email)
+- Searching the web (search_web)
+- Reading PDF files (read_pdf_text, read_pdf_with_ocr)
+- Answering questions about PDFs (ask_question_about_pdf)
+- Getting PDF information (get_pdf_info)
+
+When the user asks you to perform these tasks, use the appropriate tool.
 For simple greetings and conversation, just respond naturally without using tools."""
 
             # Add conversation history to context
@@ -320,6 +380,26 @@ For simple greetings and conversation, just respond naturally without using tool
                             )
                         elif tool_name == "search_web":
                             result = await self.search_web_tool(tool_input["query"])
+                        elif tool_name == "read_pdf_text":
+                            result = await read_pdf_text(
+                                tool_input["file_path"],
+                                tool_input.get("page_start"),
+                                tool_input.get("page_end")
+                            )
+                        elif tool_name == "read_pdf_with_ocr":
+                            result = await read_pdf_with_ocr(
+                                tool_input["file_path"],
+                                tool_input.get("page_start"),
+                                tool_input.get("page_end"),
+                                tool_input.get("ocr_language", "eng")
+                            )
+                        elif tool_name == "ask_question_about_pdf":
+                            result = await ask_question_about_pdf(
+                                tool_input["question"],
+                                tool_input.get("file_path")
+                            )
+                        elif tool_name == "get_pdf_info":
+                            result = await get_pdf_info(tool_input["file_path"])
                         else:
                             result = f"Unknown tool: {tool_name}"
                         
