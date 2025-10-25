@@ -2,14 +2,15 @@
 """
 MCP Server for Web Search
 Allows AI assistants to search the internet for real-time information
+Uses WebSearch-MCP crawler service from https://mcpservers.org/servers/mnhlt/WebSearch-MCP
 """
 
 import asyncio
 import os
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from dotenv import load_dotenv
 import requests
-from urllib.parse import quote_plus
+import json
 
 # Load environment variables
 load_dotenv()
@@ -24,62 +25,165 @@ except ImportError:
 # Initialize MCP server
 mcp = FastMCP("Web Search")
 
+# WebSearch Crawler API configuration
+CRAWLER_API_URL = os.getenv("WEBSEARCH_API_URL", "http://localhost:3001")
+
+def check_crawler_health() -> bool:
+    """Check if the WebSearch crawler API is available."""
+    try:
+        response = requests.get(f"{CRAWLER_API_URL}/health", timeout=5)
+        return response.status_code == 200
+    except Exception:
+        return False
+
+async def _search_with_duckduckgo(query: str, num_results: int = 5) -> str:
+    """
+    Fallback search using DuckDuckGo Instant Answer API (no API key needed).
+    """
+    try:
+        from urllib.parse import quote_plus
+        
+        # Try DuckDuckGo Instant Answer API first
+        api_url = f"https://api.duckduckgo.com/?q={quote_plus(query)}&format=json&no_html=1"
+        
+        response = requests.get(api_url, timeout=10)
+        data = response.json()
+        
+        results = []
+        
+        # Get abstract/summary
+        if data.get('Abstract'):
+            results.append({
+                'title': data.get('Heading', 'Summary'),
+                'snippet': data.get('Abstract', ''),
+                'url': data.get('AbstractURL', '')
+            })
+        
+        # Get related topics
+        for topic in data.get('RelatedTopics', [])[:num_results-1]:
+            if isinstance(topic, dict) and topic.get('Text'):
+                results.append({
+                    'title': topic.get('Text', '').split(' - ')[0][:100],
+                    'snippet': topic.get('Text', '')[:200],
+                    'url': topic.get('FirstURL', '')
+                })
+        
+        if results:
+            result_text = f"🔍 Search results for '{query}' ({len(results)} found):\n\n"
+            for i, result in enumerate(results, 1):
+                result_text += f"{i}. {result['title']}\n"
+                result_text += f"   📝 {result['snippet']}\n"
+                if result['url']:
+                    result_text += f"   🔗 {result['url']}\n"
+                result_text += "\n"
+            return result_text
+        
+        # If no results from API, provide a helpful response
+        return (
+            f"🔍 Search: '{query}'\n\n"
+            f"💡 I can help you search for this information. Here are some suggestions:\n\n"
+            f"1. Try searching on:\n"
+            f"   • Google: https://www.google.com/search?q={quote_plus(query)}\n"
+            f"   • DuckDuckGo: https://duckduckgo.com/?q={quote_plus(query)}\n\n"
+            f"2. For better results, try:\n"
+            f"   • Be more specific with your query\n"
+            f"   • Use keywords instead of full sentences\n"
+            f"   • Add context (e.g., 'Python tutorial 2025' instead of 'Python')\n\n"
+            f"💡 Tip: Start Docker Desktop and run './start_websearch.sh' for\n"
+            f"   more comprehensive web search results!"
+        )
+            
+    except ImportError:
+        return (
+            f"📝 Search query: '{query}'\n\n"
+            f"⚠️  Basic web search is available, but for best results:\n"
+            f"• Install with: uv add beautifulsoup4\n"
+            f"• Or start Docker: ./start_websearch.sh"
+        )
+    except Exception as e:
+        return (
+            f"🔍 Search: '{query}'\n\n"
+            f"⚠️  Unable to fetch live results at the moment.\n\n"
+            f"You can search manually at:\n"
+            f"• https://www.google.com/search?q={quote_plus(query)}\n"
+            f"• https://duckduckgo.com/?q={quote_plus(query)}\n\n"
+            f"Error: {str(e)}"
+        )
+
 @mcp.tool()
-async def search_web(query: str, num_results: int = 5) -> str:
+async def search_web(
+    query: str, 
+    num_results: int = 5,
+    language: str = "en",
+    region: str = "us",
+    result_type: str = "all"
+) -> str:
     """
     Search the web for real-time information.
+    
+    Tries WebSearch-MCP crawler first (if Docker is running),
+    then falls back to DuckDuckGo HTML search.
     
     Args:
         query: Search query string
         num_results: Number of results to return (default: 5)
+        language: Language code for search results (default: "en")
+        region: Region code for search results (default: "us")
+        result_type: Type of results - 'all', 'news', or 'blogs' (default: "all")
     
     Returns:
-        Search results with titles, URLs, and snippets
+        Search results with titles, URLs, snippets, and metadata
     """
+    # Try WebSearch-MCP crawler first (if available)
     try:
-        # Use DuckDuckGo for search (no API key required)
-        search_url = f"https://html.duckduckgo.com/html/?q={quote_plus(query)}"
-        
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        payload = {
+            "query": query,
+            "numResults": num_results,
+            "language": language,
+            "filters": {
+                "resultType": result_type
+            }
         }
         
-        response = requests.get(search_url, headers=headers, timeout=10)
-        response.raise_for_status()
+        response = requests.post(
+            f"{CRAWLER_API_URL}/crawl",
+            json=payload,
+            headers={"Content-Type": "application/json"},
+            timeout=5  # Short timeout for quick fallback
+        )
         
-        # Simple text extraction (in production, use proper HTML parsing)
-        content = response.text
-        
-        # Extract basic information
-        results = []
-        lines = content.split('\n')
-        
-        for i, line in enumerate(lines):
-            if 'result__title' in line and i < len(lines) - 1:
-                # Extract title and URL
-                title_line = lines[i + 1] if i + 1 < len(lines) else ""
-                snippet_line = lines[i + 2] if i + 2 < len(lines) else ""
+        if response.status_code == 200:
+            data = response.json()
+            results = data.get("results", [])
+            
+            if results:
+                result_text = f"🔍 Search results for '{query}' ({len(results)} found):\n\n"
                 
-                if len(results) < num_results:
-                    results.append({
-                        'title': title_line.strip()[:100],
-                        'snippet': snippet_line.strip()[:200],
-                        'url': 'https://duckduckgo.com'  # Simplified for demo
-                    })
-        
-        if results:
-            result_text = f"Search results for '{query}':\n\n"
-            for i, result in enumerate(results, 1):
-                result_text += f"{i}. {result['title']}\n"
-                result_text += f"   {result['snippet']}\n"
-                result_text += f"   URL: {result['url']}\n\n"
-            
-            return result_text
-        else:
-            return f"No results found for '{query}'. Try a different search term."
-            
-    except Exception as e:
-        return f"Error searching the web: {str(e)}"
+                for i, result in enumerate(results, 1):
+                    title = result.get("title", "No title")
+                    snippet = result.get("snippet", "No description available")
+                    url = result.get("url", "")
+                    site_name = result.get("siteName", "")
+                    byline = result.get("byline", "")
+                    
+                    result_text += f"{i}. {title}\n"
+                    if site_name:
+                        result_text += f"   📰 Source: {site_name}\n"
+                    if byline:
+                        result_text += f"   ✍️  By: {byline}\n"
+                    result_text += f"   📝 {snippet}\n"
+                    result_text += f"   🔗 {url}\n\n"
+                
+                return result_text
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+        # WebSearch-MCP not available, fall back to DuckDuckGo
+        pass
+    except Exception:
+        # Any other error with WebSearch-MCP, fall back
+        pass
+    
+    # Fallback to DuckDuckGo search
+    return await _search_with_duckduckgo(query, num_results)
 
 @mcp.tool()
 async def get_news(topic: str = "technology", num_articles: int = 3) -> str:
@@ -94,9 +198,8 @@ async def get_news(topic: str = "technology", num_articles: int = 3) -> str:
         Recent news articles about the topic
     """
     try:
-        # Use a simple news search
-        query = f"{topic} news"
-        return await search_web(query, num_articles)
+        # Use the news filter for better results
+        return await search_web(topic, num_articles, result_type="news")
         
     except Exception as e:
         return f"Error getting news: {str(e)}"

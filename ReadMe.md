@@ -24,11 +24,14 @@ A comprehensive personal AI assistant built using Model Context Protocol (MCP) t
 - Conflict detection
 
 ### ✅ Web Search (1pt)
-- Search the internet for real-time information
-- Get news articles on specific topics
-- Weather information lookup
-- Stock price queries
-- Uses DuckDuckGo for search (no API key required)
+- **Works without Docker!** Uses DuckDuckGo Instant Answer API
+- **No API key required** for basic search functionality
+- **Automatic fallback**: Tries WebSearch-MCP (Docker) first, then DuckDuckGo
+- Optional advanced crawler with **Cloudflare bypass** (via Docker)
+- Rich results with titles, snippets, and URLs
+- Helpful search links when live results unavailable
+- Multiple search engines supported
+- Language and region support
 
 ### ✅ Pizza Ordering (2pt)
 - Browse pizza menus and restaurants
@@ -66,8 +69,15 @@ model_context_protocol/
 ### Key Technologies
 - **FastMCP**: Modern MCP server framework
 - **Resend**: Email delivery service
-- **PyPDF**: PDF text extraction
+- **PyMuPDF**: Advanced PDF text extraction
+- **Tesseract OCR**: Image-based text extraction from PDFs
+- **pytesseract**: Python wrapper for Tesseract
+- **Pillow**: Image processing
 - **LangChain**: Document processing and Q&A
+- **WebSearch-MCP**: Real-time web crawler with Cloudflare bypass
+- **Docker**: Container orchestration for web search services
+- **Anthropic Claude**: AI-powered natural conversation
+- **Google Calendar API**: Meeting scheduling integration
 - **Requests**: Web search and HTTP requests
 - **Python 3.11+**: Modern Python features
 
@@ -76,7 +86,24 @@ model_context_protocol/
 ### Prerequisites
 - Python 3.11 or higher
 - Resend API key (for email functionality)
+- Anthropic API key (for AI chat assistant)
+- Google Calendar API credentials (for meeting scheduling)
 - UV package manager (recommended)
+- Tesseract OCR (for PDF image text extraction)
+  ```bash
+  # macOS
+  brew install tesseract
+  
+  # Ubuntu/Debian
+  sudo apt-get install tesseract-ocr
+  
+  # Windows
+  # Download from: https://github.com/UB-Mannheim/tesseract/wiki
+  ```
+
+**Optional (for enhanced web search):**
+- Docker Desktop (enables WebSearch-MCP with Cloudflare bypass)
+- Basic web search works without Docker using DuckDuckGo API
 
 ### Installation
 ```bash
@@ -89,7 +116,15 @@ uv sync
 
 # Set up environment variables
 echo "RESEND_API_KEY=your_resend_api_key_here" > .env
+echo "ANTHROPIC_API_KEY=your_anthropic_api_key_here" >> .env
+echo "WEBSEARCH_API_URL=http://localhost:3001" >> .env
+
+# Start Docker services for web search (requires Docker Desktop)
+./start_websearch.sh
+# OR: docker-compose up -d
 ```
+
+> **📘 For detailed WebSearch setup**: See [WEBSEARCH_SETUP.md](WEBSEARCH_SETUP.md)
 
 ### Running the Servers
 
