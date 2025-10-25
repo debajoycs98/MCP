@@ -11,14 +11,10 @@ A comprehensive personal AI assistant built using Model Context Protocol (MCP) t
 - Secure API key management with environment variables
 
 ### ✅ PDF Reading and Q&A (1pt)
-- Read single or multiple PDF files with page range support
-- Extract text content from PDFs using PyMuPDF (fitz)
-- **OCR support** for scanned documents and images in PDFs using Tesseract OCR
-- Extract images from PDF files
-- Get comprehensive PDF metadata (page count, file size, images, etc.)
-- Analyze PDF structure and content distribution
-- Ask questions about PDF content with keyword-based search
-- Support for multiple OCR languages (English, French, German, Spanish, etc.)
+- Read single or multiple PDF files
+- Extract text content from PDFs
+- Ask questions about PDF content
+- Simple keyword-based search and Q&A
 
 ### ✅ Meeting Scheduling (1pt)
 - Schedule meetings with date/time
@@ -70,12 +66,9 @@ model_context_protocol/
 ### Key Technologies
 - **FastMCP**: Modern MCP server framework
 - **Resend**: Email delivery service
-- **PyMuPDF (fitz)**: Fast PDF processing and rendering
-- **Tesseract OCR**: Optical character recognition for scanned documents
-- **pytesseract**: Python wrapper for Tesseract
-- **Pillow**: Image processing for OCR
+- **PyPDF**: PDF text extraction
+- **LangChain**: Document processing and Q&A
 - **Requests**: Web search and HTTP requests
-- **Anthropic Claude**: Natural language conversation and tool calling
 - **Python 3.11+**: Modern Python features
 
 ## 🚀 Getting Started
@@ -83,11 +76,6 @@ model_context_protocol/
 ### Prerequisites
 - Python 3.11 or higher
 - Resend API key (for email functionality)
-- Anthropic API key (for Claude AI assistant)
-- **Tesseract OCR** (for PDF OCR capabilities)
-  - macOS: `brew install tesseract`
-  - Ubuntu/Debian: `sudo apt install tesseract-ocr`
-  - Windows: Download from [UB-Mannheim/tesseract](https://github.com/UB-Mannheim/tesseract/wiki)
 - UV package manager (recommended)
 
 ### Installation
@@ -190,25 +178,10 @@ uv run python start_assistant.py
 - `send simple email to <email> subject <subject> message <message>`
 
 #### 📄 PDF Commands
-- `read pdf at <file_path>` - Extract text from PDF
-- `read <file_path> with OCR` - Extract text including OCR from images
-- `get info about <file_path>` - Get PDF metadata (pages, size, images)
-- `analyze structure of <file_path>` - Analyze PDF structure
-- `extract images from <file_path>` - Save all images from PDF
-- `ask about pdf: <question>` - Ask questions about loaded PDFs
-- `list loaded documents` - Show all loaded PDFs
-
-**Examples:**
-```
-You: Read the PDF at /path/to/homework.pdf
-Assistant: [Extracts and displays text content]
-
-You: What are the key points in this PDF?
-Assistant: [Searches loaded PDF content and summarizes]
-
-You: Read the scanned document at /path/to/scan.pdf with OCR
-Assistant: [Uses Tesseract OCR to extract text from images]
-```
+- `read pdf <file_path>`
+- `read multiple pdfs <file1,file2,file3>`
+- `ask about pdf <question> [file_path]`
+- `list loaded documents`
 
 #### 🌐 Web Search Commands
 - `search <query>`
@@ -272,15 +245,10 @@ Type 'help' for commands, 'quit' to exit
 - `send_email_tool(to, subject, body, from_email)` - Send emails to multiple recipients
 
 ### PDF Tools
-- `read_pdf_text(file_path, page_start, page_end)` - Extract text from PDF with optional page range
-- `read_pdf_with_ocr(file_path, page_start, page_end, ocr_language)` - Extract text including OCR from images
-  - Supports multiple languages: 'eng', 'fra', 'deu', 'spa', 'eng+fra', etc.
-  - Uses Tesseract OCR for scanned documents
-- `extract_pdf_images(file_path, output_dir, page_start, page_end)` - Extract all images from PDF
-- `get_pdf_info(file_path)` - Get metadata (page count, file size, images, title, author, etc.)
-- `analyze_pdf_structure(file_path)` - Analyze PDF structure and content distribution
-- `ask_question_about_pdf(question, file_path)` - Ask questions about loaded PDF content
-- `list_loaded_documents()` - List all loaded PDF documents with metadata
+- `read_pdf_tool(file_path)` - Read and extract text from PDF
+- `read_multiple_pdfs_tool(file_paths)` - Read multiple PDFs
+- `ask_question_about_pdf_tool(question, file_path)` - Ask questions about PDF content
+- `list_loaded_documents_tool()` - List loaded PDF documents
 
 ### Web Search Tools
 - `search_web_tool(query, num_results)` - Search the internet

@@ -35,10 +35,6 @@ from mcp_servers.ask_questions import (
     ask_clarifying_question, ask_personal_information, ask_preference_question, 
     ask_confirmation, get_user_response, list_pending_questions
 )
-from mcp_servers.pdf_reader import (
-    read_pdf_text, extract_pdf_images, read_pdf_with_ocr,
-    get_pdf_info, analyze_pdf_structure, ask_question_about_pdf, list_loaded_documents
-)
 
 class AIPersonalAssistant:
     def __init__(self):
@@ -275,53 +271,32 @@ class AIPersonalAssistant:
                     }
                 },
                 {
-                    "name": "read_pdf_text",
-                    "description": "Extract text content from a PDF file. Can specify page range.",
+                    "name": "schedule_meeting",
+                    "description": "Schedule a meeting in Google Calendar",
                     "input_schema": {
                         "type": "object",
                         "properties": {
-                            "file_path": {"type": "string", "description": "Path to the PDF file"},
-                            "page_start": {"type": "integer", "description": "Starting page number (1-indexed, optional)"},
-                            "page_end": {"type": "integer", "description": "Ending page number (1-indexed, optional)"}
+                            "title": {"type": "string", "description": "Meeting title"},
+                            "date": {"type": "string", "description": "Meeting date (YYYY-MM-DD format)"},
+                            "time": {"type": "string", "description": "Meeting time (HH:MM 24-hour format)"},
+                            "duration_minutes": {"type": "integer", "description": "Duration in minutes (default 60)"},
+                            "attendees": {"type": "array", "items": {"type": "string"}, "description": "List of attendee email addresses"},
+                            "location": {"type": "string", "description": "Meeting location"},
+                            "description": {"type": "string", "description": "Meeting description"}
                         },
-                        "required": ["file_path"]
+                        "required": ["title", "date", "time"]
                     }
                 },
                 {
-                    "name": "read_pdf_with_ocr",
-                    "description": "Extract text from PDF including OCR from images. Best for scanned documents or PDFs with embedded images containing text.",
+                    "name": "list_meetings",
+                    "description": "List meetings from Google Calendar",
                     "input_schema": {
                         "type": "object",
                         "properties": {
-                            "file_path": {"type": "string", "description": "Path to the PDF file"},
-                            "page_start": {"type": "integer", "description": "Starting page number (1-indexed, optional)"},
-                            "page_end": {"type": "integer", "description": "Ending page number (1-indexed, optional)"},
-                            "ocr_language": {"type": "string", "description": "OCR language code (default: 'eng', use 'eng+fra' for multiple)"}
+                            "date": {"type": "string", "description": "Optional date to filter (YYYY-MM-DD)"},
+                            "max_results": {"type": "integer", "description": "Max number of meetings (default 10)"}
                         },
-                        "required": ["file_path"]
-                    }
-                },
-                {
-                    "name": "ask_question_about_pdf",
-                    "description": "Ask a question about a loaded PDF's content. Must load PDF first using read_pdf_text or read_pdf_with_ocr.",
-                    "input_schema": {
-                        "type": "object",
-                        "properties": {
-                            "question": {"type": "string", "description": "The question to ask about the PDF content"},
-                            "file_path": {"type": "string", "description": "Path to specific PDF (optional, uses all loaded PDFs if not specified)"}
-                        },
-                        "required": ["question"]
-                    }
-                },
-                {
-                    "name": "get_pdf_info",
-                    "description": "Get metadata and statistics about a PDF file (page count, file size, images, etc.)",
-                    "input_schema": {
-                        "type": "object",
-                        "properties": {
-                            "file_path": {"type": "string", "description": "Path to the PDF file"}
-                        },
-                        "required": ["file_path"]
+                        "required": []
                     }
                 }
             ]
@@ -331,9 +306,8 @@ class AIPersonalAssistant:
 You have access to tools for:
 - Sending emails (send_simple_email)
 - Searching the web (search_web)
-- Reading PDF files (read_pdf_text, read_pdf_with_ocr)
-- Answering questions about PDFs (ask_question_about_pdf)
-- Getting PDF information (get_pdf_info)
+- Scheduling meetings in Google Calendar (schedule_meeting)
+- Listing calendar events (list_meetings)
 
 When the user asks you to perform these tasks, use the appropriate tool.
 For simple greetings and conversation, just respond naturally without using tools."""
@@ -380,26 +354,21 @@ For simple greetings and conversation, just respond naturally without using tool
                             )
                         elif tool_name == "search_web":
                             result = await self.search_web_tool(tool_input["query"])
-                        elif tool_name == "read_pdf_text":
-                            result = await read_pdf_text(
-                                tool_input["file_path"],
-                                tool_input.get("page_start"),
-                                tool_input.get("page_end")
+                        elif tool_name == "schedule_meeting":
+                            result = await schedule_meeting(
+                                tool_input["title"],
+                                tool_input["date"],
+                                tool_input["time"],
+                                tool_input.get("duration_minutes", 60),
+                                tool_input.get("attendees"),
+                                tool_input.get("location"),
+                                tool_input.get("description")
                             )
-                        elif tool_name == "read_pdf_with_ocr":
-                            result = await read_pdf_with_ocr(
-                                tool_input["file_path"],
-                                tool_input.get("page_start"),
-                                tool_input.get("page_end"),
-                                tool_input.get("ocr_language", "eng")
+                        elif tool_name == "list_meetings":
+                            result = await list_meetings(
+                                tool_input.get("date"),
+                                tool_input.get("max_results", 10)
                             )
-                        elif tool_name == "ask_question_about_pdf":
-                            result = await ask_question_about_pdf(
-                                tool_input["question"],
-                                tool_input.get("file_path")
-                            )
-                        elif tool_name == "get_pdf_info":
-                            result = await get_pdf_info(tool_input["file_path"])
                         else:
                             result = f"Unknown tool: {tool_name}"
                         
